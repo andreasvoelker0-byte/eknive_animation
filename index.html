@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOMP 1 — Prototyp</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0c0c0c;
+            --surface: #111111;
+            --border: rgba(255,255,255,0.06);
+            --accent: #c8a96e;
+            --accent-dim: rgba(200,169,110,0.15);
+            --text: #e8e0d5;
+            --muted: #5a5550;
+        }
+        html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; overflow: hidden; }
+        body::before {
+            content: ''; position: fixed; inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none; z-index: 100; opacity: 0.5;
+        }
+        .layout { display: grid; grid-template-columns: 1fr 300px; height: 100vh; }
+
+        .video-pane {
+            position: relative; display: flex; align-items: center; justify-content: center;
+            background: var(--bg); overflow: hidden;
+        }
+        .video-pane::after {
+            content: ''; position: absolute; width: 60%; height: 60%;
+            background: radial-gradient(ellipse, rgba(200,169,110,0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Two videos stacked — only one visible at a time */
+        .video-pane video {
+            position: absolute; width: 100%; height: 100%;
+            object-fit: contain; z-index: 1;
+            transition: opacity 0.3s ease;
+        }
+        .video-pane video.hidden { opacity: 0; pointer-events: none; }
+
+        .info-pane {
+            position: relative; background: var(--surface);
+            border-left: 1px solid var(--border); overflow: hidden;
+        }
+        .info-pane::before {
+            content: ''; position: absolute; top: 0; right: 0;
+            width: 120px; height: 120px;
+            background: conic-gradient(from 180deg at 100% 0%, var(--accent-dim), transparent 40%);
+            pointer-events: none; z-index: 0;
+        }
+        .info-content {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 160px;
+            padding: 2.5rem 2rem 1rem; overflow: hidden;
+        }
+        .control-area {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            padding: 0 2rem 2rem; background: var(--surface); z-index: 10;
+        }
+        .control-area::before {
+            content: ''; position: absolute; top: -2.5rem; left: 0; right: 0;
+            height: 2.5rem; background: linear-gradient(to bottom, transparent, var(--surface));
+            pointer-events: none;
+        }
+        .brand {
+            font-family: 'Bebas Neue', sans-serif; font-size: 0.75rem;
+            letter-spacing: 0.3em; color: var(--accent); text-transform: uppercase; margin-bottom: 0.75rem;
+        }
+        .title { font-family: 'Bebas Neue', sans-serif; font-size: 3.5rem; line-height: 0.9; letter-spacing: 0.02em; color: var(--text); }
+        .title span { display: block; color: var(--accent); }
+        .divider { width: 2.5rem; height: 1px; background: var(--accent); margin: 1.25rem 0; }
+        .description { font-size: 0.82rem; line-height: 1.75; color: var(--muted); font-weight: 300; letter-spacing: 0.02em; }
+        .specs { display: flex; flex-direction: column; margin-top: 1.25rem; }
+        .spec-row {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+            padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+        }
+        .spec-label { color: var(--muted); }
+        .spec-value { color: var(--text); font-weight: 500; }
+        .progress-wrap { width: 100%; height: 1px; background: var(--border); margin-bottom: 1.25rem; overflow: hidden; }
+        .progress-bar { height: 100%; width: 0%; background: var(--accent); }
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+        .action-btn {
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+            width: 100%; padding: 0.9rem 0.75rem; background: transparent;
+            border: 1px solid var(--accent); color: var(--accent);
+            font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 0.2em;
+            cursor: pointer; position: relative; overflow: hidden; transition: color 0.35s ease;
+        }
+        .action-btn::before {
+            content: ''; position: absolute; inset: 0; background: var(--accent);
+            transform: translateX(-105%); transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+        }
+        .action-btn:hover::before, .action-btn:focus-visible::before { transform: translateX(0); }
+        .action-btn:hover, .action-btn:focus-visible { color: var(--bg); outline: none; }
+        .action-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+        .action-btn.dim { border-color: var(--muted); color: var(--muted); }
+        .action-btn.dim::before { background: var(--muted); }
+        .action-btn span { position: relative; z-index: 1; }
+        .btn-icon { position: relative; z-index: 1; width: 12px; height: 12px; flex-shrink: 0; }
+        .status {
+            text-align: center; margin-top: 0.6rem; font-size: 0.68rem;
+            letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); transition: color 0.3s ease;
+        }
+        .status.active { color: var(--accent); }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <div class="video-pane">
+        <!-- Video A: plays forward (Öffnen) -->
+        <video id="vidA" playsinline muted preload="auto">
+            <source src="Knive_open.webm" type="video/webm">
+        </video>
+        <!-- Video B: same file, scrubbed backward for Schließen -->
+        <video id="vidB" playsinline muted preload="auto" class="hidden">
+            <source src="Knive_Close.webm" type="video/webm">
+        </video>
+    </div>
+
+    <div class="info-pane">
+        <div class="info-content">
+            <p class="brand">Atelier Klingenwerk</p>
+            <h1 class="title">KOMP 1<span>PROTOTYPE</span></h1>
+            <div class="divider"></div>
+            <p class="description">Handcrafted prototype of the first composition — a study in balance, material and form. Every curve carries intent.</p>
+            <div class="specs">
+                <div class="spec-row"><span class="spec-label">Status</span><span class="spec-value">Prototype</span></div>
+                <div class="spec-row"><span class="spec-label">Series</span><span class="spec-value">Composition 1</span></div>
+                <div class="spec-row"><span class="spec-label">Render</span><span class="spec-value">3D Animation</span></div>
+            </div>
+        </div>
+        <div class="control-area">
+            <div class="progress-wrap"><div class="progress-bar" id="prog"></div></div>
+            <div class="btn-group">
+                <button class="action-btn" id="openBtn">
+                    <svg class="btn-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h10M6 1l5 5-5 5"/></svg>
+                    <span>Open</span>
+                </button>
+                <button class="action-btn dim" id="closeBtn" disabled>
+                    <svg class="btn-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6H1M6 11L1 6l5-5"/></svg>
+                    <span>Close</span>
+                </button>
+            </div>
+            <p class="status" id="status">Ready</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const vidA    = document.getElementById('vidA');
+    const vidB    = document.getElementById('vidB');
+    const openBtn = document.getElementById('openBtn');
+    const closeBtn= document.getElementById('closeBtn');
+    const statusEl= document.getElementById('status');
+    const prog    = document.getElementById('prog');
+
+    let rafId = null;
+    let dur   = 0;
+
+    vidA.addEventListener('loadedmetadata', () => {
+        dur = vidA.duration;
+        vidA.currentTime = 0;
+    });
+
+    function stopRaf() {
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    }
+
+    function setProgress(t, d) {
+        prog.style.width = d ? (t / d * 100) + '%' : '0%';
+    }
+
+    function setBothDisabled(state) {
+        openBtn.disabled  = state;
+        closeBtn.disabled = state;
+    }
+
+    // ── ÖFFNEN ──
+    openBtn.addEventListener('click', () => {
+        stopRaf();
+        vidB.pause();
+        vidB.classList.add('hidden');
+        vidA.classList.remove('hidden');
+
+        vidA.currentTime = 0;
+        vidA.play();
+
+        setBothDisabled(true);
+        closeBtn.classList.add('dim');
+        statusEl.textContent = 'Opening…';
+        statusEl.classList.add('active');
+
+        function trackOpen() {
+            setProgress(vidA.currentTime, vidA.duration);
+            if (!vidA.paused && !vidA.ended) {
+                rafId = requestAnimationFrame(trackOpen);
+            }
+        }
+        rafId = requestAnimationFrame(trackOpen);
+    });
+
+    vidA.addEventListener('ended', () => {
+        stopRaf();
+        setProgress(1, 1);
+        openBtn.disabled  = true;
+        closeBtn.disabled = false;
+        closeBtn.classList.remove('dim');
+        statusEl.textContent = 'Opened';
+        statusEl.classList.remove('active');
+    });
+
+    // ── SCHLIESSEN ──
+    closeBtn.addEventListener('click', () => {
+        stopRaf();
+        vidA.pause();
+        vidA.classList.add('hidden');
+        vidB.classList.remove('hidden');
+
+        vidB.currentTime = 0;
+        vidB.play();
+
+        setBothDisabled(true);
+        statusEl.textContent = 'Closing…';
+        statusEl.classList.add('active');
+
+        function trackClose() {
+            setProgress(vidB.currentTime, vidB.duration);
+            if (!vidB.paused && !vidB.ended) {
+                rafId = requestAnimationFrame(trackClose);
+            }
+        }
+        rafId = requestAnimationFrame(trackClose);
+    });
+
+    vidB.addEventListener('ended', () => {
+        stopRaf();
+        setProgress(0, 1);
+        openBtn.disabled  = false;
+        closeBtn.disabled = true;
+        closeBtn.classList.add('dim');
+        statusEl.textContent = 'Closed';
+        statusEl.classList.remove('active');
+    });
+</script>
+</body>
+</html>
